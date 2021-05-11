@@ -19,6 +19,11 @@
 #include <arduino-timer.h>
 #include <Bounce2.h>
 #include "Joystick.h"
+// #include <Wire.h>
+// #include <SPI.h>
+// #include <Adafruit_GFX.h>
+// #include <Adafruit_SSD1306.h>
+
 
 // Define hardware: LED and Button pins and states
 const int LED_PIN = 7;
