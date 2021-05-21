@@ -15,15 +15,18 @@
  *  See the tutorial for more information:
  *  https://learn.sparkfun.com/tutorials/nrf52840-development-with-arduino-and-circuitpython#arduino-examples  
 */
+
 #include <bluefruit.h>
 #include <arduino-timer.h>
 #include <Bounce2.h>
 #include "Joystick.h"
-// #include <Wire.h>
-// #include <SPI.h>
-// #include <Adafruit_GFX.h>
-// #include <Adafruit_SSD1306.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 
+// display
+#define OLED_RESET 4
 
 // Define hardware: LED and Button pins and states
 const int LED_PIN = 7;
@@ -34,9 +37,9 @@ const int RGBLED_CLOCK_PIN = 19;
 const int RGBLED_DATA_PIN = 20;
 const int RGBLED_LATCH_PIN = 21;
 
-#define JOYSTICK_XPIN A0
-#define JOYSTICK_YPIN A1
-const int JOYSTICK_BUTTON_PIN = 23;
+#define JOYSTICK_XPIN 5 // stimmt
+#define JOYSTICK_YPIN 4 
+#define JOYSTICK_BUTTON_PIN 9
 #define JOYSTICK_BUTTON_SHIFT 0
 
 const int MAIN_BUTTON_PIN = 22;
@@ -54,6 +57,15 @@ Joystick joystick(JOYSTICK_XPIN, JOYSTICK_YPIN, 1024, 0.15);
 auto timer = timer_create_default(); // create a timer with default settings
 Bounce *buttons = new Bounce[NUM_BUTTONS];
 
+// display 
+Adafruit_SSD1306 display(OLED_RESET);
+
+int voltageDisplayPeriod = 20000;
+int currentTime;
+
+int batteryVoltage;
+double percent;
+
 bool sendMessage(void *)
 {
   static uint8_t mes[5];
@@ -65,7 +77,7 @@ bool sendMessage(void *)
   *x = tu_htons(joystick.getXraw());
   *y = tu_htons(joystick.getYraw());
 
-  Serial.printf("X: %d, Y: %d\n", tu_ntohs(*x), tu_ntohs(*y));
+  // Serial.printf("X: %d, Y: %d\n", tu_ntohs(*x), tu_ntohs(*y));
   *_buttons = (!buttons[0].read()) << JOYSTICK_BUTTON_SHIFT;
   *_buttons |= ((!buttons[1].read()) << MAIN_BUTTON_SHIFT);
 
@@ -75,20 +87,6 @@ bool sendMessage(void *)
 
 bool setRGBLED(void *data)
 {
-  // uint32_t color = *(uint32_t *)data;
-  // uint8_t red = color & 0xFF0000;
-  // uint8_t green = color & 0x00FF00;
-  // uint8_t blue = color & 0x0000FF;
-
-  // static uint8_t byte = 0x01;
-  // for(uint8_t i = 0; i < 256; i++)
-  // {
-  // digitalWrite(RGBLED_LATCH_PIN, HIGH);
-  // shiftOut(RGBLED_DATA_PIN, RGBLED_CLOCK_PIN, LSBFIRST, i);
-  // digitalWrite(RGBLED_LATCH_PIN, LOW);
-  // Serial.println(i);
-  // delay(200);
-  // }
   return false;
   return true;
 }
@@ -103,6 +101,7 @@ void setup()
   pinMode(RGBLED_DATA_PIN, OUTPUT);
   pinMode(RGBLED_LATCH_PIN, OUTPUT);
   digitalWrite(RGBLED_LATCH_PIN, HIGH);
+  pinMode(JOYSTICK_BUTTON_PIN, INPUT_PULLDOWN);
 
   pinMode(BUTTON_PIN, INPUT);
   for (int i = 0; i < NUM_BUTTONS; i++)
@@ -135,6 +134,31 @@ void setup()
   timer.every(20, sendMessage);
   // timer.every(50, [](void*) -> bool { digitalWrite(LED_BLUE, !digitalRead(LED_BLUE)); return true;});
   timer.every(1000, setRGBLED, (void *)0xFF0000);
+
+  // display 
+  Wire.setPins(20,19); // configure i2c pins
+
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.clearDisplay();
+
+  batteryVoltage = analogRead(28);
+
+  percent = mapF((double)batteryVoltage, 0.0, 1023.0, 0.0, 5.0) / 3.7;
+  percent *= 100;
+
+  // display
+  display.setTextSize(2);
+  display.setTextColor(WHITE);
+  display.setCursor(0,0);
+
+  display.print(percent);
+  display.println(" %");
+  display.println("not connected");
+  display.display();
+  delay(voltageDisplayPeriod);
+
+  display.clearDisplay();
+  display.display();
 }
 
 void loop()
