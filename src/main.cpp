@@ -28,40 +28,24 @@
 // display
 #define OLED_RESET 4
 
-// Define hardware: LED and Button pins and states
-const int LED_PIN = 7;
-#define LED_OFF LOW
-#define LED_ON HIGH
-
-const int RGBLED_CLOCK_PIN = 19;
-const int RGBLED_DATA_PIN = 20;
-const int RGBLED_LATCH_PIN = 21;
-
-#define JOYSTICK_XPIN 5 // stimmt
+// define joystick pins and joystick button pins
+#define JOYSTICK_XPIN 5 
 #define JOYSTICK_YPIN 4 
 #define JOYSTICK_BUTTON_PIN 9
 #define JOYSTICK_BUTTON_SHIFT 0
 
-const int MAIN_BUTTON_PIN = 22;
-#define MAIN_BUTTON_SHIFT 1
-
-const int BUTTON_PIN = 13;
-#define BUTTON_ACTIVE LOW
-int lastButtonState = -1;
-
-#define NUM_BUTTONS 2
-const uint8_t BUTTON_PINS[NUM_BUTTONS] = {JOYSTICK_BUTTON_PIN, MAIN_BUTTON_PIN};
+// define time to display voltage 
+#define VOLTAGE_DISPLAY_PERIOD 10000
 
 BLEUart bleuart; // uart over ble
+
 Joystick joystick(JOYSTICK_XPIN, JOYSTICK_YPIN, 1024, 0.15);
+
+// create timer 
 auto timer = timer_create_default(); // create a timer with default settings
-Bounce *buttons = new Bounce[NUM_BUTTONS];
 
 // display 
 Adafruit_SSD1306 display(OLED_RESET);
-
-int voltageDisplayPeriod = 20000;
-int currentTime;
 
 int batteryVoltage;
 double percent;
@@ -77,17 +61,7 @@ bool sendMessage(void *)
   *x = tu_htons(joystick.getXraw());
   *y = tu_htons(joystick.getYraw());
 
-  // Serial.printf("X: %d, Y: %d\n", tu_ntohs(*x), tu_ntohs(*y));
-  *_buttons = (!buttons[0].read()) << JOYSTICK_BUTTON_SHIFT;
-  *_buttons |= ((!buttons[1].read()) << MAIN_BUTTON_SHIFT);
-
   bleuart.write(mes, 5);
-  return true;
-}
-
-bool setRGBLED(void *data)
-{
-  return false;
   return true;
 }
 
@@ -95,22 +69,6 @@ void setup()
 {
   // Initialize hardware:
   Serial.begin(9600);       // Serial is the USB serial port
-  pinMode(LED_PIN, OUTPUT); // Turn on-board blue LED off
-  digitalWrite(LED_PIN, LED_OFF);
-  pinMode(RGBLED_CLOCK_PIN, OUTPUT);
-  pinMode(RGBLED_DATA_PIN, OUTPUT);
-  pinMode(RGBLED_LATCH_PIN, OUTPUT);
-  digitalWrite(RGBLED_LATCH_PIN, HIGH);
-  pinMode(JOYSTICK_BUTTON_PIN, INPUT_PULLDOWN);
-
-  pinMode(BUTTON_PIN, INPUT);
-  for (int i = 0; i < NUM_BUTTONS; i++)
-  {
-    buttons[i].attach(BUTTON_PINS[i], INPUT_PULLUP); //setup the bounce instance for the current button
-    buttons[i].interval(25);                         // interval in ms
-  }
-
-  //Bluefruit.autoConnLed(false);
 
   // Initialize Bluetooth:
   Bluefruit.begin();
@@ -132,8 +90,6 @@ void setup()
   Bluefruit.Advertising.start(0);
 
   timer.every(20, sendMessage);
-  // timer.every(50, [](void*) -> bool { digitalWrite(LED_BLUE, !digitalRead(LED_BLUE)); return true;});
-  timer.every(1000, setRGBLED, (void *)0xFF0000);
 
   // display 
   Wire.setPins(20,19); // configure i2c pins
@@ -153,9 +109,9 @@ void setup()
 
   display.print(percent);
   display.println(" %");
-  display.println("not connected");
+
   display.display();
-  delay(voltageDisplayPeriod);
+  delay(VOLTAGE_DISPLAY_PERIOD);
 
   display.clearDisplay();
   display.display();
@@ -169,29 +125,6 @@ void loop()
     uint8_t c;
     // use bleuart.read() to read a character sent over BLE
     c = (uint8_t)bleuart.read();
-
-    // If the character is one of our expected values,
-    // do something:
-    switch (c)
-    {
-    // 0 number or character, turn the LED off:
-    case 0:
-    case '0':
-      digitalWrite(LED_PIN, LED_OFF);
-      break;
-    // 1 number or character, turn the LED on:
-    case 1:
-    case '1':
-      digitalWrite(LED_PIN, LED_ON);
-      break;
-    default:
-      break;
-    }
-  }
-
-  for (int i = 0; i < NUM_BUTTONS; i++)
-  {
-    buttons[i].update();
   }
 
   timer.tick();
